@@ -30,3 +30,4 @@ else
 	/etc/init.d/rc.overlay
 fi
 /bin/echo "End of $0"
+/bin/mt2.sh
