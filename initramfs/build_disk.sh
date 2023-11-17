@@ -17,7 +17,7 @@ if [ "$1" = "v5" ]; then
 	V7_BUILD=0
 fi
 
-if [ "${ROOTFS_CONTENT}" = "FULL" ]; then
+if [ "${ROOTFS_CONTENT}" = "YOCTO" ]; then
 	tar_rootfs=0
 
 	if [ ! -d ${DISKOUT} ]; then
