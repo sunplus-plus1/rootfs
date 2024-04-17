@@ -1,0 +1,97 @@
+#!/bin/sh
+
+PART_FLAG=/etc/init.d/partflag
+#SIZE=5
+if [ ! -f $PART_FLAG ];then
+
+	ROOT_PART=$(mount | sed -n 's|^/dev/\(.*\) on / .*|\1|p')
+	echo "ROOT_PART=$ROOT_PART"
+
+	ROOT_DEV=/dev/$(echo "$ROOT_PART" | cut -c1-7)
+	echo "ROOT_DEV=$ROOT_DEV"
+
+	RESIZE_PART=/dev/$ROOT_PART
+	echo "RESIZE_PART=$RESIZE_PART"
+
+	#PART_NUM=$(echo "$ROOT_PART" | cut -c9)
+	#echo "PART_NUM=$PART_NUM"
+
+	ST_PART_NUM=$(parted $ROOT_DEV -ms unit s p | tail -n 1 | cut -f 1 -d:)
+	echo "ST_PART_NUM=$ST_PART_NUM"
+
+	if [ $ST_PART_NUM -ne 2 ];then
+		echo "Not the SD card rootfs partition."
+		touch $PART_FLAG
+		exit 0
+	fi
+
+	PART_START=$(parted $ROOT_DEV -ms unit s p | grep "^${ST_PART_NUM}" | cut -f 2 -d: | sed 's/[^0-9]//g')
+	echo "PART_START_SECTOR=$PART_START sector"
+
+	#PART_START=$(fdisk -lu $ROOT_DEV | grep "$RESIZE_PART"|awk '{print $2}'|tr -cd "[0-9]")
+	#echo "$RESIZE_PART start sector=$PART_START sector"
+
+	### Extend to full size - 10MB
+	DEV_TOTAL_SIZE=$(fdisk -lu $ROOT_DEV | grep "Disk $ROOT_DEV:"|awk '{print $5}'|tr -cd "[0-9]")
+	echo "$ROOT_DEV total size=$DEV_TOTAL_SIZE bytes"
+	### 1 sector = 0.5KBytes, to reserve 10MB, z=20480
+	DEV_TOTAL_SIZE=$(awk -v x=$DEV_TOTAL_SIZE -v y=512 -v z=20480 'BEGIN{printf "%d\n",(x/y)-z}')
+	echo "Want to extend $RESIZE_PART end sector to $DEV_TOTAL_SIZE"
+	PART_END=$DEV_TOTAL_SIZE
+
+	### Extend to $SIZE GByte size
+	#SEC=$(( $SIZE * 1024  * 1024  * 1024 / 512 ))
+	#echo "Want to extend $RESIZE_PART size to be $SIZE GBytes=$SEC sectors"
+	#PART_END=$(( $PART_START + $SEC ))
+	#echo "PART_END_SECTOR=$PART_END sector"
+
+	### Extend ROOTFS PARTITION
+	fdisk $ROOT_DEV <<EOF
+p
+d
+$ST_PART_NUM
+n
+p
+$ST_PART_NUM
+$PART_START
+$PART_END
+p
+w
+EOF
+
+	touch $PART_FLAG
+
+	### now set up an init.d script
+  cat <<EOF > /etc/init.d/resize2fs_once &&
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          resize2fs_once
+# Required-Start:
+# Required-Stop:
+# Default-Start: 3
+# Default-Stop:
+# Short-Description: Resize the root filesystem to fill partition
+# Description:
+### END INIT INFO
+. /lib/lsb/init-functions
+case "\$1" in
+  start)
+    log_daemon_msg "Starting resize2fs_once" &&
+    resize2fs $RESIZE_PART &&
+    update-rc.d resize2fs_once remove &&
+    rm /etc/init.d/resize2fs_once &&
+    log_end_msg \$?
+    ;;
+  *)
+    echo "Usage: \$0 start" >&2
+    exit 3
+    ;;
+esac
+EOF
+
+	chmod +x /etc/init.d/resize2fs_once &&
+	update-rc.d resize2fs_once defaults &&
+	echo "Root partition has been resized.\nThe filesystem will be enlarged upon the next reboot"
+	echo "ReBoot now"
+	reboot
+fi

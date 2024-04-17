@@ -58,20 +58,74 @@ if [ "${ROOTFS_CONTENT}" = "YOCTO" ]; then
 		fi
 	else
 		cp -av prebuilt/resize2fs/v8/* $DISKOUT
-        check_remoteproc=`cat ${DISKOUT}/etc/profile | grep "REMOTEPROC"`
-        if [ "${check_remoteproc}" == "" ]; then
-echo '
-# ADD REMOTEPROC
-if [ -d /sys/class/remoteproc/remoteproc0 ]; then
-  if [ -f /lib/firmware/firmware ]; then
-       echo "Boot CM4 firmware by remoteproc"
-       echo firmware > /sys/class/remoteproc/remoteproc0/firmware
-       echo start > /sys/class/remoteproc/remoteproc0/state
-  fi
-fi' >> ${DISKOUT}/etc/profile
-    fi
+	        check_remoteproc=`cat ${DISKOUT}/etc/profile | grep "REMOTEPROC"`
+	        if [ "${check_remoteproc}" == "" ]; then
+			echo '
+			# ADD REMOTEPROC
+			if [ -d /sys/class/remoteproc/remoteproc0 ]; then
+	  			if [ -f /lib/firmware/firmware ]; then
+	       				echo "Boot CM4 firmware by remoteproc"
+	       				echo firmware > /sys/class/remoteproc/remoteproc0/firmware
+	       				echo start > /sys/class/remoteproc/remoteproc0/state
+	  			fi
+			fi' >> ${DISKOUT}/etc/profile
+	    	fi
 	fi
 	cp ${DISKZ}etc/init.d/rc.resizefs ${DISKOUT}/etc/init.d/rc.resizefs
+
+	exit 0
+elif [ "${ROOTFS_CONTENT:0:6}" = "ubuntu" ]; then
+	if [ "$ARCH" == "arm64" ]; then
+		exit 1
+	fi
+
+	if [ -f "${DISKOUT}/etc/lsb-release" ]; then
+		. ${DISKOUT}/etc/lsb-release
+		if [ "${DISTRIB_ID} == Ubuntu" ]; then
+			exit 0
+		fi
+		rm -rf ${DISKOUT}
+	fi
+
+	mkdir -p ${DISKOUT}
+	echo "Uncompressing ${ROOTFS_CONTENT}-rootfs-${ARCH}.tar.gz"
+	if [ -x /usr/bin/pv ]; then
+		pv -prb ubuntu/${ROOTFS_CONTENT}/${ROOTFS_CONTENT}-rootfs-${ARCH}.tar.gz* | tar -xzf - -C ${DISKOUT} --strip-components 1
+	else
+		cat ubuntu/${ROOTFS_CONTENT}/${ROOTFS_CONTENT}-rootfs-${ARCH}.tar.gz* | tar -xzf - -C ${DISKOUT} --strip-components 1
+        fi
+	mkdir -p .tmp
+	ln -sf ../ubuntu/${ROOTFS_CONTENT}/${ROOTFS_CONTENT}-rootfs-${ARCH}-attr.list .tmp/attr.list
+
+	cp -R ${DISKZ}lib/firmware/ ${DISKLIB}
+
+	# ADD systemd rc-local.service
+	FILE_RC_LOCAL_SERVICE="${DISKOUT}/etc/systemd/system/rc-local.service"
+	if [ -d ${DISKOUT}/etc/systemd/system ]; then
+		cat <<EOF > ${FILE_RC_LOCAL_SERVICE}
+[Unit]
+  Description=/etc/rc.local Compatibility
+  ConditionPathExists=/etc/rc.local
+
+[Service]
+  Type=forking
+  ExecStart=/etc/rc.local start
+  TimeoutSec=0
+  StandardOutput=tty
+  RemainAfterExit=yes
+  SysVStartPriority=99
+
+[Install]
+  WantedBy=multi-user.target
+EOF
+	fi
+
+	# Copy rc.local file to /etc of rootfs, this file is used for systemd rc-local.service.
+	# Action within this file:
+	# 1. Do CM4-REMOTEPROC
+	# 2. Change NPU(galcore) device file attribute
+	# 3. Extend rootfs partition and resize partition base on disk size limitation.
+	cp ubuntu/etc/rc.local ${DISKOUT}/etc
 	exit 0
 else
 	if [ ! -f ${DISKOUT}/init ]; then

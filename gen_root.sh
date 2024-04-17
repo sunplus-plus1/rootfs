@@ -11,7 +11,7 @@ WORK_DIR=./initramfs/disk
 if [ "$1" = "EMMC" ]; then
 ############################################  ext4 fs ############################################
 	echo -e  "\E[1;33m ========make ext4 fs========== \E[0m"
-	MKFS="fakeroot -- mke2fs"
+	FAKEROOT="fakeroot -- "
 	RESIZE=./tools/resize2fs
 
 	if [ ! -d $WORK_DIR ]; then
@@ -28,7 +28,7 @@ if [ "$1" = "EMMC" ]; then
 	EXT_SIZE=$((diskdir_sz/1024/1024+20))
 	rm -rf $OUT_IMG
 
-	$MKFS -t ext4 -b 4096 -d "$WORK_DIR" $OUT_IMG $((EXT_SIZE))M
+	$FAKEROOT /bin/bash -c "./tools/setting_attr.py $WORK_DIR ./initramfs/.tmp/attr.list; mke2fs -t ext4 -b 4096 -d $WORK_DIR $OUT_IMG $((EXT_SIZE))M"
 
 	# Resize to 10% more than minimum.
 	minimum_sz=`$RESIZE -P $OUT_IMG | cut -d: -f2`
