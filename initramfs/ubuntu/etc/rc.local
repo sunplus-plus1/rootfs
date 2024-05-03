@@ -1,5 +1,13 @@
 #!/bin/sh
 
+if [ -d /sys/class/remoteproc/remoteproc0 ];then
+	if [ -f /lib/firmware/firmware ];then
+		echo "Boot arm926 firmware by remoteproc"
+		echo firmware > /sys/class/remoteproc/remoteproc0/firmware
+		echo start > /sys/class/remoteproc/remoteproc0/state
+	fi
+fi
+
 PART_FLAG=/etc/init.d/partflag
 #SIZE=5
 if [ ! -f $PART_FLAG ];then
@@ -21,6 +29,9 @@ if [ ! -f $PART_FLAG ];then
 
 	if [ $ST_PART_NUM -ne 2 ];then
 		echo "Not the SD card rootfs partition, don't use fdisk to extend rootfs partition, just resize2fs rootfs to max disk capacity."
+		resize2fs $RESIZE_PART
+		touch $PART_FLAG
+		exit 0
 	else
 
 	PART_START=$(parted $ROOT_DEV -ms unit s p | grep "^${ST_PART_NUM}" | cut -f 2 -d: | sed 's/[^0-9]//g')
