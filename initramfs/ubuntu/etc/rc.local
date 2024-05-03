@@ -20,10 +20,8 @@ if [ ! -f $PART_FLAG ];then
 	echo "ST_PART_NUM=$ST_PART_NUM"
 
 	if [ $ST_PART_NUM -ne 2 ];then
-		echo "Not the SD card rootfs partition."
-		touch $PART_FLAG
-		exit 0
-	fi
+		echo "Not the SD card rootfs partition, don't use fdisk to extend rootfs partition, just resize2fs rootfs to max disk capacity."
+	else
 
 	PART_START=$(parted $ROOT_DEV -ms unit s p | grep "^${ST_PART_NUM}" | cut -f 2 -d: | sed 's/[^0-9]//g')
 	echo "PART_START_SECTOR=$PART_START sector"
@@ -58,6 +56,7 @@ $PART_END
 p
 w
 EOF
+	fi
 
 	touch $PART_FLAG
 
