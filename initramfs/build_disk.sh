@@ -61,17 +61,26 @@ if [ "${ROOTFS_CONTENT}" = "YOCTO" ]; then
 	        check_remoteproc=`cat ${DISKOUT}/etc/profile | grep "REMOTEPROC"`
 	        if [ "${check_remoteproc}" == "" ]; then
 			echo '
-			# ADD REMOTEPROC
-			if [ -d /sys/class/remoteproc/remoteproc0 ]; then
-	  			if [ -f /lib/firmware/firmware ]; then
-	       				echo "Boot CM4 firmware by remoteproc"
-	       				echo firmware > /sys/class/remoteproc/remoteproc0/firmware
-	       				echo start > /sys/class/remoteproc/remoteproc0/state
-	  			fi
-			fi' >> ${DISKOUT}/etc/profile
+# ADD REMOTEPROC
+if [ -d /sys/class/remoteproc/remoteproc0 ]; then
+    if [ -f /lib/firmware/firmware ]; then
+            echo "Boot CM4 firmware by remoteproc"
+            echo firmware > /sys/class/remoteproc/remoteproc0/firmware
+            echo start > /sys/class/remoteproc/remoteproc0/state
+    fi
+fi
+' >> ${DISKOUT}/etc/profile
 	    	fi
 	fi
-	cp ${DISKZ}etc/init.d/rc.resizefs ${DISKOUT}/etc/init.d/rc.resizefs
+
+			echo '
+if [ -f "/etc/init.d/rc.resizefs.once" ]; then
+    /etc/init.d/rc.resizefs.once
+    mv /etc/init.d/rc.resizefs.once /etc/init.d/rc.resizefs
+fi
+' >> ${DISKOUT}/etc/profile
+
+	cp ${DISKZ}etc/init.d/rc.resizefs ${DISKOUT}/etc/init.d/rc.resizefs.once
 
 	exit 0
 elif [ "${ROOTFS_CONTENT:0:6}" = "ubuntu" ]; then
